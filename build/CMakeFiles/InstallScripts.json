@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/fxh/cpp_code/Chat/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
