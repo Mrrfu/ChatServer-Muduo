@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+            // // "compileCommands": "${workspaceFolder}/build/compile_commands.json" //这一句命令一般用不上,因为有browse
+            // "browse": { //一般别用该参数,不需要,且易出错
+            //     "path": ["${workspaceFolder}"],
+            //     "limitSymbolsToIncludedHeaders": true, //一般设置为true,如果有些代码没法智能提示可以将该字段设置为false试试
+            //     "databaseFilename": "" //用不上
+            // }
+        }
+    ],
+    "version": 4
+}

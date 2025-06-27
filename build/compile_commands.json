@@ -1,0 +1,14 @@
+[
+{
+  "directory": "/home/fxh/cpp_code/Chat/build",
+  "command": "/usr/bin/c++  -I/home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/include -g -std=gnu++11 -g -pthread -o CMakeFiles/MemoryPoolProject.dir/src/MemoryPool.cpp.o -c /home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/src/MemoryPool.cpp",
+  "file": "/home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/src/MemoryPool.cpp",
+  "output": "CMakeFiles/MemoryPoolProject.dir/src/MemoryPool.cpp.o"
+},
+{
+  "directory": "/home/fxh/cpp_code/Chat/build",
+  "command": "/usr/bin/c++  -I/home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/include -g -std=gnu++11 -g -pthread -o CMakeFiles/MemoryPoolProject.dir/src/main.cpp.o -c /home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/src/main.cpp",
+  "file": "/home/fxh/cpp_code/Cpp-Learning-Journey/MemoryPool/src/main.cpp",
+  "output": "CMakeFiles/MemoryPoolProject.dir/src/main.cpp.o"
+}
+]

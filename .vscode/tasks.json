@@ -1,0 +1,34 @@
+{
+    "options": {
+        // "cwd": "${fileDirname}"
+        "cwd": "${workspaceFolder}/build" //需要进入到我们执行tasks任务的文件夹中，要调试的可执行程序的工作路径(绝对路径)，不包括文件名
+    },
+    "tasks": [
+        {
+            "type": "shell", //可有可无
+            "label": "cmake",
+            "command": "cmake",
+            "args": [
+                "..",
+            ],
+        },
+        {
+            "label": "make",
+            "group": { //可有可无
+                "kind": "build",
+                "isDefault": true
+            },
+            "command": "make",
+            "args": []
+        },
+        {
+            "label": "build",
+            "dependsOrder": "sequence", //按照列出的顺序执行任务依赖项
+            "dependsOn": [
+                "cmake",
+                "make"
+            ]
+        }
+    ],
+    "version": "2.0.0"
+}
