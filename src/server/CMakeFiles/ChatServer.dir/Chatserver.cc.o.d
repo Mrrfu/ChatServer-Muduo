@@ -310,4 +310,6 @@ src/server/CMakeFiles/ChatServer.dir/Chatserver.cc.o: \
  /usr/include/c++/11/bits/ostream.tcc \
  /usr/include/c++/11/bits/istream.tcc \
  /home/fxh/cpp_code/Chat/include/public.hpp \
+ /home/fxh/cpp_code/Chat/include/usermodel.hpp \
+ /home/fxh/cpp_code/Chat/include/user.hpp \
  /home/fxh/cpp_code/Chat/include/../thirdparty/json.hpp
