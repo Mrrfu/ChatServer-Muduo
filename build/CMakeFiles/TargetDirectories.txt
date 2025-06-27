@@ -1,3 +1,0 @@
-/home/fxh/cpp_code/Chat/build/CMakeFiles/MemoryPoolProject.dir
-/home/fxh/cpp_code/Chat/build/CMakeFiles/edit_cache.dir
-/home/fxh/cpp_code/Chat/build/CMakeFiles/rebuild_cache.dir

@@ -1,7 +1,0 @@
-/home/fxh/cpp_code/Chat/CMakeFiles/edit_cache.dir
-/home/fxh/cpp_code/Chat/CMakeFiles/rebuild_cache.dir
-/home/fxh/cpp_code/Chat/src/CMakeFiles/edit_cache.dir
-/home/fxh/cpp_code/Chat/src/CMakeFiles/rebuild_cache.dir
-/home/fxh/cpp_code/Chat/src/server/CMakeFiles/ChatServer.dir
-/home/fxh/cpp_code/Chat/src/server/CMakeFiles/edit_cache.dir
-/home/fxh/cpp_code/Chat/src/server/CMakeFiles/rebuild_cache.dir
