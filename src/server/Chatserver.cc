@@ -27,10 +27,11 @@ void ChatServer::onConnection(const TcpConnectionPtr &conn)
     // 用户断开连接
     if (!conn->connected())
     {
+        ChatService::getInstance()->clientCloseException(conn);
         conn->shutdown();
     }
 }
-// 上报读写相关信息的回调函数
+// 根据msgid调用对应的回调函数
 void ChatServer::onMessage(const TcpConnectionPtr &conn,
                            Buffer *buffer,
                            Timestamp receiveTime)
