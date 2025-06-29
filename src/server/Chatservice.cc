@@ -108,6 +108,36 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
                 }
                 response["friends"] = temp;
             }
+            // 查询群组列表
+            std::vector<Group> groups;
+            groups = _gruopModel.queryGroups(user.getId());
+            if (!groups.empty())
+            {
+                std::vector<std::string> groupinfo;
+                for (Group &group : groups)
+                {
+                    json js;
+                    js["groupid"] = group.getId();
+                    js["groupname"] = group.getName();
+                    js["groupdesc"] = group.getDesc();
+
+                    // 查询当前群组的成员信息
+                    std::vector<std::string> userinfo;
+                    for (GroupUser &groupuser : group.getUsers())
+                    {
+                        json js;
+                        js["id"] = groupuser.getId();
+                        js["name"] = groupuser.getName();
+                        js["state"] = groupuser.getState();
+                        js["role"] = groupuser.getRole();
+                        userinfo.push_back(js.dump());
+                    }
+
+                    js["users"] = userinfo;
+                    groupinfo.push_back(js.dump());
+                }
+                response["groups"] = groupinfo;
+            }
 
             response["msgid"] = LOGIN_MSG_ACK;
             response["errno"] = 0;
@@ -157,7 +187,7 @@ void ChatService::reg(const TcpConnectionPtr &conn, json &js, Timestamp time)
 
 void ChatService::oneChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
-    int toid = js["to"].get<int>();
+    int toid = js["toid"].get<int>();
     {
         std::lock_guard<std::mutex> lock(_connMutex);
         auto it = _userConnMap.find(toid);
@@ -181,6 +211,8 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
     int groupid = js["groupid"].get<int>();
     // 返回当前群组的所有用户（除了自己）
     std::vector<int> userids = _gruopModel.queryGroupUsers(userid, groupid);
+    // for (auto id : userids)
+    //     LOG_INFO << id;
     // 发送消息
     std::lock_guard<std::mutex> lock(_connMutex); // 上锁
     for (const int &id : userids)
