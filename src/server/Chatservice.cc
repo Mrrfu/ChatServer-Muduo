@@ -26,6 +26,8 @@ ChatService::ChatService()
                                                     std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({GROUP_CHAT_MSG, std::bind(&ChatService::groupChat, this,
                                                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    _msgHandlerMap.insert({LOGINOUT_MSG, std::bind(&ChatService::loginout, this,
+                                                   std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
 }
 
 void ChatService::reset()
@@ -85,6 +87,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
 
             // 获取离线消息
             std::vector<std::string> vec = _offlineMsgModel.query(user.getId());
+
             if (!vec.empty())
             {
                 response["offlinemsg"] = vec;
@@ -157,6 +160,28 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     }
 
     // 查询到了就登录并修改在线状态
+}
+
+void ChatService::loginout(const TcpConnectionPtr &conn, json &js, Timestamp time)
+{
+
+    User user;
+    int id = js["id"].get<int>();
+    // 查找对应的连接
+    {
+        std::lock_guard<std::mutex> lock(_connMutex);
+        auto it = _userConnMap.find(id);
+        if (it != _userConnMap.end())
+        {
+            user.setId(id);
+            _userConnMap.erase(it); // 删除对应连接
+        }
+    }
+    if (user.getId() != -1)
+    {
+        user.setState("offline"); // 修改在线状态
+        _userModel.updateState(user);
+    }
 }
 void ChatService::reg(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
@@ -255,6 +280,11 @@ void ChatService::createGroup(const TcpConnectionPtr &conn, json &js, Timestamp 
     {
         // 2.将自身设置为管理员
         _gruopModel.addGroup(userid, group.getId(), "creator");
+        json js;
+        js["msgid"] = CREATE_GROUP_ACK;
+        js["errno"] = 0;
+        js["groupid"] = group.getId();
+        conn->send(js.dump());
     }
     else
         LOG_INFO << "创建群组失败！";

@@ -38,6 +38,8 @@ public:
 
     // 处理客户端异常退出
     void clientCloseException(const TcpConnectionPtr &conn);
+    // 处理注销登录
+    void loginout(const TcpConnectionPtr &conn, json &js, Timestamp time);
 
     // 服务器异常后业务重置方法
     void reset();
