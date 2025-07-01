@@ -12,6 +12,8 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <semaphore.h>
+#include <atomic>
 
 #include "group.hpp"
 #include "user.hpp"
@@ -26,7 +28,9 @@ using json = nlohmann::json;
 User g_currentUser;
 
 bool isMainMenuRunning = false;
-void handleLoginSuccess(json &, int);
+void doLoginSuccessResponse(json &);
+void doRegResponse(json &);
+void doCreateGroupResponse(json &);
 
 // 记录用户好友列表信息
 vector<User> g_currentUserFriendList;
@@ -39,9 +43,14 @@ void showCurrentUserData();
 
 // 接收线程
 void readTaskHandler(int clientfd);
-
 // 获取系统时间
 string getCurrentTime();
+
+// 信号量，用于读写线程之间的通信
+sem_t rwsem;
+
+// 原子变量，保证线程安全，记录登录状态
+std::atomic<bool> g_isLoginSuccess{false};
 
 // 主聊天界面
 void mainMenu(int clientid);
@@ -72,8 +81,8 @@ int main(int argc, char **argv)
 
     // 配置服务器地址信息
     server.sin_family = AF_INET;
-    server.sin_port = htons(port); // 将主机字节序转为网络字节序
-    server.sin_addr.s_addr = inet_addr(ip); //转为网络字节序的32位整数
+    server.sin_port = htons(port);          // 将主机字节序转为网络字节序
+    server.sin_addr.s_addr = inet_addr(ip); // 转为网络字节序的32位整数
 
     // 进行连接
     if (connect(clientfd, (sockaddr *)&server, sizeof(sockaddr_in)) == -1)
@@ -82,6 +91,13 @@ int main(int argc, char **argv)
         close(clientfd);
         exit(-1);
     }
+
+    // 初始化信号量
+    sem_init(&rwsem, 0, 0);
+
+    // 连接服务器成功，启动接受子线程接受消息
+    std::thread readTask(readTaskHandler, clientfd);
+    readTask.detach();
 
     while (1)
     {
@@ -92,8 +108,15 @@ int main(int argc, char **argv)
         cout << "========================" << endl;
         cout << "choice: ";
         int choice;
-        cin >> choice;
+        if (!(cin >> choice))
+        {                                                        // 如果输入不是整数
+            cin.clear();                                         // 清除错误标志
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // 忽略所有非法输入
+            cout << "Invalid input! Please enter a number." << endl;
+            continue; // 跳过本次循环，重新开始
+        }
         cin.get(); // 读掉缓冲区的回车
+
         switch (choice)
         {
         case 1: // login
@@ -111,6 +134,9 @@ int main(int argc, char **argv)
             js["password"] = pwd;
             string request = js.dump();
 
+            // 设置为未登录状态
+            g_isLoginSuccess = false;
+
             int len = send(clientfd, request.c_str(), strlen(request.c_str()) + 1, 0);
             if (len == -1)
             {
@@ -118,16 +144,12 @@ int main(int argc, char **argv)
             }
             else
             {
-                char buffer[2048] = {0}; // 缓冲区的长度设置的太小会导致数据被截断！
-                len = recv(clientfd, buffer, 2048, 0);
-                if (len == -1)
+                // 等待信号量
+                sem_wait(&rwsem);
+                if (g_isLoginSuccess)
                 {
-                    cerr << "recv login msg error: " << request << endl;
-                }
-                else
-                {
-                    json responsejs = json::parse(buffer);
-                    handleLoginSuccess(responsejs, clientfd);
+                    isMainMenuRunning = true;
+                    mainMenu(clientfd);
                 }
             }
         }
@@ -154,30 +176,14 @@ int main(int argc, char **argv)
             }
             else
             {
-                char buffer[1024] = {0};
-                len = recv(clientfd, buffer, 1024, 0);
-                if (len == -1)
-                {
-                    cerr << "recv reg response error: " << request << endl;
-                }
-                else
-                {
-                    json reponsejs = json::parse(buffer);
-                    if (reponsejs["errno"].get<int>() != 0)
-                    {
-                        cerr << name << " is already exist,register error!" << endl;
-                    }
-                    else
-                    {
-                        cerr << name << " register success! userid is " << reponsejs["id"]
-                             << ", do not forget it!" << endl;
-                    }
-                }
+                // 等待信号量
+                sem_wait(&rwsem);
             }
         }
         break;
         case 3:
             close(clientfd);
+            sem_destroy(&rwsem); // 释放信号量
             exit(0);
         default:
             cerr << "invalid input!" << endl;
@@ -186,6 +192,55 @@ int main(int argc, char **argv)
     }
 
     return 0;
+}
+
+void readTaskHandler(int clientfd)
+{
+    while (1)
+    {
+        char buffer[4096] = {0}; // 设置为1024可能会导致收不到完整的数据！
+        int len = recv(clientfd, buffer, 4096, 0);
+        if (len == -1 || len == 0)
+        {
+            close(clientfd);
+            exit(-1);
+        }
+        // 接受服务器转发的数据，反序列化生成json数据对象
+        json js = json::parse(buffer);
+        int msgtype = js["msgid"].get<int>();
+        // 一对一聊天
+        if (msgtype == ONE_CHAT_MSG)
+        {
+            cout << "ONE-CHAT----> " << js["time"].get<string>() << " [" << js["id"] << "] " << js["name"].get<string>() << ": " << js["msg"].get<string>() << endl;
+            continue;
+        }
+        if (msgtype == GROUP_CHAT_MSG)
+        {
+
+            cout << "GROUP-CHAT----> " << js["time"].get<string>() << " groupid:" << " [" << js["groupid"] << "] " << endl;
+            cout << " [" << js["id"] << "] " << js["name"].get<string>() << ": " << js["msg"].get<string>() << endl;
+            continue;
+        }
+        if (msgtype == LOGIN_MSG_ACK)
+        {
+            // 处理登录响应的业务逻辑
+            doLoginSuccessResponse(js);
+            sem_post(&rwsem); // 通知主线程，登录结果处理完成
+            continue;
+        }
+        if (msgtype == REG_MSG_ACK)
+        {
+            doRegResponse(js);
+            sem_post(&rwsem);
+            continue;
+        }
+        if (msgtype == CREATE_GROUP_ACK)
+        {
+            doCreateGroupResponse(js);
+            sem_post(&rwsem);
+            continue;
+        }
+    }
 }
 
 void showCurrentUserData()
@@ -215,34 +270,6 @@ void showCurrentUserData()
     cout << "==============================================================" << endl;
 }
 
-void readTaskHandler(int clientfd)
-{
-    while (1)
-    {
-        char buffer[1024] = {0};
-        int len = recv(clientfd, buffer, 1024, 0);
-        if (len == -1 || len == 0)
-        {
-            close(clientfd);
-            exit(-1);
-        }
-        // 接受服务器转发的数据，反序列化生成json数据对象
-        json js = json::parse(buffer);
-        // 一对一聊天
-        if (js["msgid"].get<int>() == ONE_CHAT_MSG)
-        {
-            cout << "ONE-CHAT----> " << js["time"].get<string>() << " [" << js["id"] << "] " << js["name"].get<string>() << ": " << js["msg"].get<string>() << endl;
-            continue;
-        }
-        else if (js["msgid"].get<int>() == GROUP_CHAT_MSG)
-        {
-
-            cout << "GROUP-CHAT----> " << js["time"].get<string>() << " groupid:" << " [" << js["groupid"] << "] " << endl;
-            cout << " [" << js["id"] << "] " << js["name"].get<string>() << ": " << js["msg"].get<string>() << endl;
-            continue;
-        }
-    }
-}
 void help(int fd = 0, string str = "");
 void chat(int, string);
 void addfriend(int, string);
@@ -253,13 +280,13 @@ void loginout(int, string);
 
 // 系统支持的客户端命令列表
 unordered_map<string, string> commandMap = {
-    {"help", "显示所有支持的命令，格式help"},
-    {"chat", "一对一聊天，格式chat:friend:message"},
-    {"addfriend", "添加好友，格式addfriend:friendid"},
-    {"creategroup", "添加群组，格式creategroup:groupname:groupdesc"},
-    {"addgroup", "加入群组，格式addgroup:groupid"},
-    {"groupchat", "群聊，格式groupchat:groupid:message"},
-    {"quit", "注销登录，格式quit"}};
+    {"help", "          显示所有支持的命令，格式help"},
+    {"chat", "          一对一聊天，格式chat:friend:message"},
+    {"addfriend", "     添加好友，格式addfriend:friendid"},
+    {"creategroup", "   创建群组，格式creategroup:groupname:groupdesc"},
+    {"addgroup", "      加入群组，格式addgroup:groupid"},
+    {"groupchat", "     群聊，格式groupchat:groupid:message"},
+    {"quit", "          注销登录，格式quit"}};
 
 // 注册系统支持的客户端命令处理
 unordered_map<string, function<void(int, string)>> commandHandlerMap = {
@@ -374,25 +401,7 @@ void creategroup(int clientfd, string str)
     }
     else
     {
-        char buffer[1024] = {0};
-        len = recv(clientfd, buffer, 1024, 0);
-        if (len == -1)
-        {
-            cerr << "recv cereategroup response error: " << buffer << endl;
-        }
-        else
-        {
-            json reponsejs = json::parse(buffer);
-            if (reponsejs["errno"].get<int>() != 0)
-            {
-                cerr << groupname << " is already exist, create error!" << endl;
-            }
-            else
-            {
-                cerr << groupname << " register success! groupid is " << reponsejs["groupid"]
-                     << ", do not forget it!" << endl;
-            }
-        }
+        sem_wait(&rwsem); // 等待信号量
     }
 }
 
@@ -460,10 +469,13 @@ void loginout(int clientfd, string str)
     else
     {
         isMainMenuRunning = false;
+        // 清理全局变量，避免切换用户时造成污染
+        g_currentUserFriendList.clear();
+        g_currentUserGroupList.clear();
     }
 }
 
-void handleLoginSuccess(json &responsejs, int clientfd)
+void doLoginSuccessResponse(json &responsejs)
 {
     if (responsejs["errno"].get<int>() != 0)
     {
@@ -496,7 +508,6 @@ void handleLoginSuccess(json &responsejs, int clientfd)
         if (responsejs.contains("groups"))
         {
             vector<string> vec = responsejs["groups"];
-            g_currentUserGroupList.clear();
             for (string &str : vec)
             {
                 json js = json::parse(str);
@@ -539,17 +550,33 @@ void handleLoginSuccess(json &responsejs, int clientfd)
                 }
             }
         }
+        g_isLoginSuccess = true;
+    }
+}
 
-        // 登录成功，启动线程接受线程负责接受数据，该线程只启动一次
-        static int readThreadNumber = 0;
-        if (readThreadNumber == 0)
-        {
-            std::thread readTask(readTaskHandler, clientfd);
-            readTask.detach();
-            readThreadNumber++;
-        }
-        isMainMenuRunning = true;
-        mainMenu(clientfd);
+void doRegResponse(json &reponsejs)
+{
+    if (reponsejs["errno"].get<int>() != 0)
+    {
+        cerr << " name is already exist, create error!" << endl;
+    }
+    else
+    {
+        cerr << "name register success! your ID is " << reponsejs["id"]
+             << ", do not forget it!" << endl;
+    }
+}
+void doCreateGroupResponse(json &reponsejs)
+{
+
+    if (reponsejs["errno"].get<int>() != 0)
+    {
+        cerr << "groupname  is already exist, create error!" << endl;
+    }
+    else
+    {
+        cerr << "groupname register success! groupid is " << reponsejs["groupid"]
+             << ", do not forget it!" << endl;
     }
 }
 

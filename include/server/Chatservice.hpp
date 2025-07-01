@@ -1,6 +1,9 @@
 #ifndef CHATSERVICE_H
 #define CHATSERVICE_H
 
+#define ON_LINE "online"
+#define OFF_LINE "offline"
+
 #include <muduo/net/TcpConnection.h>
 #include "json.hpp"
 #include "public.hpp"
@@ -11,6 +14,7 @@
 #include "friendmodel.hpp"
 #include "offlinemessagemodel.hpp"
 #include "groupmodel.hpp"
+#include "redis.hpp"
 
 using namespace muduo;
 using namespace muduo::net;
@@ -36,6 +40,8 @@ public:
     void addGroup(const TcpConnectionPtr &conn, json &js, Timestamp time); // 加群
     void createGroup(const TcpConnectionPtr &conn, json &js, Timestamp time);
 
+    void handlerRedisSubscribeMseeage(int, std::string);
+
     // 处理客户端异常退出
     void clientCloseException(const TcpConnectionPtr &conn);
     // 处理注销登录
@@ -59,6 +65,7 @@ private:
     OfflineMsgModel _offlineMsgModel;
     FriendModel _friendModel;
     GroupModel _gruopModel;
+    Redis _redis;
 };
 
 #endif

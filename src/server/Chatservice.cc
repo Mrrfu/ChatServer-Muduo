@@ -28,6 +28,11 @@ ChatService::ChatService()
                                                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
     _msgHandlerMap.insert({LOGINOUT_MSG, std::bind(&ChatService::loginout, this,
                                                    std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)});
+    // 连接redis server
+    if (_redis.connect())
+    {
+        _redis.init_notify_handler(std::bind(&ChatService::handlerRedisSubscribeMseeage, this, std::placeholders::_1, std::placeholders::_2));
+    }
 }
 
 void ChatService::reset()
@@ -73,11 +78,14 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
         }
         else
         {
+            // 登录成功，记录用户连接信息
             {
-                // 登录成功，记录用户连接信息
                 std::lock_guard<std::mutex> lock(_connMutex);
                 _userConnMap.insert({id, conn});
             }
+
+            // 用户登录成功后，向redis订阅channel
+            _redis.subscribe(id);
 
             // 修改用户在线状态
             user.setState("online");
@@ -175,6 +183,7 @@ void ChatService::loginout(const TcpConnectionPtr &conn, json &js, Timestamp tim
         {
             user.setId(id);
             _userConnMap.erase(it); // 删除对应连接
+            _redis.unsubscribe(id);
         }
     }
     if (user.getId() != -1)
@@ -183,6 +192,31 @@ void ChatService::loginout(const TcpConnectionPtr &conn, json &js, Timestamp tim
         _userModel.updateState(user);
     }
 }
+
+// 处理用户异常退出
+void ChatService::clientCloseException(const TcpConnectionPtr &conn)
+{
+    User user;
+    {
+        std::lock_guard<std::mutex> lock(_connMutex);
+        for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
+        {
+            if (it->second == conn)
+            {
+                user.setId(it->first);
+                _userConnMap.erase(it);
+                break;
+            }
+        }
+    }
+    if (user.getId() != -1)
+    {
+        user.setState("offline");
+        _userModel.updateState(user);
+        _redis.unsubscribe(user.getId());
+    }
+}
+// 注册服务
 void ChatService::reg(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     std::string name = js["name"];
@@ -210,16 +244,25 @@ void ChatService::reg(const TcpConnectionPtr &conn, json &js, Timestamp time)
     }
 }
 
+// 一对一聊天
 void ChatService::oneChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     int toid = js["toid"].get<int>();
     {
         std::lock_guard<std::mutex> lock(_connMutex);
+        // 首先查找本机服务器是否有此用户
         auto it = _userConnMap.find(toid);
         if (it != _userConnMap.end())
         {
             // toid在线，转发消息
             it->second->send(js.dump());
+            return;
+        }
+
+        // 其次，查询是否在线，在线就使用redis发布消息
+        if (_userModel.query(toid).getState() == "online")
+        {
+            _redis.publish(toid, js.dump());
             return;
         }
     }
@@ -248,9 +291,14 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
             // 在线，转发群消息
             it->second->send(js.dump());
         }
+        else if (_userModel.query(id).getState() == "online")
+        {
+            // 该用户连接了其他服务器
+            _redis.publish(id, js.dump());
+        }
         else
         {
-            // 存储离线消息
+            // 不在线，存储离线消息
             _offlineMsgModel.insert(id, js.dump());
         }
     }
@@ -298,29 +346,16 @@ void ChatService::addGroup(const TcpConnectionPtr &conn, json &js, Timestamp tim
     _gruopModel.addGroup(userid, groupid, "normal");
 }
 
-// 处理用户异常退出
-void ChatService::clientCloseException(const TcpConnectionPtr &conn)
+// 处理由redis转发的消息
+void ChatService::handlerRedisSubscribeMseeage(int userid, std::string msg)
 {
-    User user;
+    std::lock_guard<std::mutex> lock(_connMutex);
+    auto it = _userConnMap.find(userid);
+    // 首先查找用户是否在线
+    if (it != _userConnMap.end())
     {
-        std::lock_guard<std::mutex> lock(_connMutex);
-        for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
-        {
-            if (it->second == conn)
-            {
-                user.setId(it->first);
-                _userConnMap.erase(it);
-                break;
-            }
-        }
+        it->second->send(msg);
+        return;
     }
-    if (user.getId() != -1)
-    {
-        user.setState("offline");
-        _userModel.updateState(user);
-    }
-    else
-    {
-        LOG_INFO << "未查找到相应连接用户！";
-    }
+    _offlineMsgModel.insert(userid, msg);
 }
