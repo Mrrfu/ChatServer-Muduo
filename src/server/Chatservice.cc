@@ -65,6 +65,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     std::string pwd = js["password"];
 
     User user = _userModel.query(id);
+    LOG_INFO << "user login!";
 
     if (user.getId() == id && user.getPassword() == pwd)
     {
@@ -159,6 +160,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     }
     else
     {
+        LOG_INFO << "登录失败！";
         // 该用户不存在
         json response;
         response["msgid"] = LOGIN_MSG_ACK;

@@ -4,6 +4,7 @@
 #include <hiredis/hiredis.h>
 #include <thread>
 #include <functional>
+#include <mutex>
 using namespace std;
 
 /*
@@ -43,6 +44,7 @@ private:
 
     // 回调操作，收到订阅的消息，给service层上报
     function<void(int, string)> _notify_message_handler;
+    std::mutex _context_mutex;
 };
 
 #endif

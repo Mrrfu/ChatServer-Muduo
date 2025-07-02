@@ -19,6 +19,11 @@ MySQL::~MySQL()
 }
 bool MySQL::connect()
 {
+    if (!_conn)
+    {
+        LOG_INFO << "inti mysql fail!";
+        return false;
+    }
     MYSQL *p = mysql_real_connect(_conn, server.c_str(), user.c_str(),
                                   password.c_str(), dbname.c_str(), 3306, nullptr, 0);
     if (p != nullptr)

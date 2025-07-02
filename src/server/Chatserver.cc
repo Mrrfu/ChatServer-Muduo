@@ -44,6 +44,7 @@ void ChatServer::onMessage(const TcpConnectionPtr &conn,
 
     // 解耦网络模块的代码和业务模块的代码
     //  通过js["msgid"]获取---->业务handler
+    // 单例模式
     auto msgHandler = ChatService::getInstance()->getHandler(js["msgid"].get<int>()); // 获取对应handler
 
     msgHandler(conn, js, receiveTime); // 执行
