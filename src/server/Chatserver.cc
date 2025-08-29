@@ -36,6 +36,7 @@ void ChatServer::onMessage(const TcpConnectionPtr &conn,
                            Buffer *buffer,
                            Timestamp receiveTime)
 {
+    // muduo采用边缘触发（EPOLLET）会将socket中的可读数据全部读出，考虑循环解析数据
     // 收到消息
     std::string buf = buffer->retrieveAllAsString();
 
