@@ -8,6 +8,8 @@ using namespace muduo;
 using namespace muduo::net;
 
 // 聊天服务器的主类
+
+/*基于muduo网络库*/
 class ChatServer
 {
 public:

@@ -1,12 +1,14 @@
-#include "Chatserver.hpp"
-#include "Chatservice.hpp"
+// #include "Chatserver.hpp"
+// #include "Chatservice.hpp"
+#include "ChatServerLib.h"
+#include "ChatServiceLib.h"
 #include <iostream>
 #include <signal.h>
 
 // 处理服务器ctr+c结束后，重置user的状态信息
 void resetHandler(int)
 {
-    ChatService::getInstance()->reset();
+    ChatServiceLib::getInstance()->reset();
     exit(0);
 }
 int main(int argc, char **argv)
@@ -20,10 +22,13 @@ int main(int argc, char **argv)
     char *ip = argv[1];
     uint16_t port = atoi(argv[2]);
 
-    EventLoop loop;
-    InetAddress addr(ip, port);
-    ChatServer server(&loop, addr, "ChatServer");
+    // EventLoop loop;
+    // InetAddress addr(ip, port);
+    // ChatServer server(&loop, addr, "ChatServer");
+    // server.start();
+    // loop.loop();
+
+    ChatServerLib server(ip, port, "ChatServer");
     server.start();
-    loop.loop();
     return 0;
 }

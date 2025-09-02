@@ -8,4 +8,11 @@ aux_source_directory(./redis REDIS_LIST)
 # 生成可执行文件
 add_executable(ChatServer ${SRC_LIST} ${DB_LIST} ${MODEL_LIST} ${REDIS_LIST})
 
-target_link_libraries(ChatServer muduo_net muduo_base mysqlclient hiredis pthread)
+target_link_libraries(ChatServer
+    muduo_net
+    muduo_base
+    mysqlclient
+    hiredis
+    pthread
+    event
+    glog)
