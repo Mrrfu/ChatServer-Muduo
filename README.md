@@ -86,7 +86,7 @@ make
 
 ### TODO
 1. libevent是单线程，并发性能差
-  - 考虑使用主线程只负责监听和分发fd、N个工作线程使用自己的event_base注册bufferevent
+    - 考虑使用主线程只负责监听和分发fd、N个工作线程使用自己的event_base注册bufferevent
 2. 解决消息明文传输
     - 采用对称和非对称混合加密算法对消息进行加密
 
