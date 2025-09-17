@@ -64,7 +64,10 @@ void ChatServerLib::acceptConnCb(evconnlistener *listener, evutil_socket_t fd,
                                  sockaddr *addr, int socklen, void *ctx)
 {
     ChatServerLib *server = static_cast<ChatServerLib *>(ctx);
+    // fd是accept返回的连接文件描述符
+    // 为客户端连接fd新建一个bufferevent对象
     bufferevent *bev = bufferevent_socket_new(server->_base, fd, BEV_OPT_CLOSE_ON_FREE);
+
     if (!bev)
     {
         std::cerr << "create bufferevent error!\n";

@@ -1,0 +1,10 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/fxh/cpp_code/Chat/build/cmake_install.cmake",
+		"/home/fxh/cpp_code/Chat/build/src/cmake_install.cmake",
+		"/home/fxh/cpp_code/Chat/build/src/server/cmake_install.cmake",
+		"/home/fxh/cpp_code/Chat/build/src/client/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -28,7 +28,9 @@ Connection::Ptr Connection::create(bufferevent *bev, OnCloseCb onClose, OnMessag
     ptr->_self = ptr;
 
     // 设置回调，ctx 为裸指针（this）
-    bufferevent_setcb(bev, Connection::readCb, nullptr, Connection::eventCb, ptr.get());
+    // bufferevent_setcb(bev, Connection::readCb, nullptr, Connection::eventCb, ptr.get());
+    // 传入一个new weak_ptr，用于观察外部对象是否析构
+    bufferevent_setcb(bev, Connection::readCb, nullptr, Connection::eventCb, new std::weak_ptr<Connection>(ptr));
 
     // 启动读写事件监听
     bufferevent_enable(bev, EV_READ | EV_WRITE);
@@ -67,9 +69,20 @@ evutil_socket_t Connection::fd() const
 void Connection::readCb(struct bufferevent *bev, void *ctx)
 {
     // 恢复上下文（这里是指具体哪个连接）
-    Connection *self = static_cast<Connection *>(ctx);
-    if (!self)
+    // Connection *self = static_cast<Connection *>(ctx);
+    // if (!self)
+    //     return;
+
+    // 这里不能使用裸指针。这是因为无法保证对象在执行回调前是否被删除（例如，从连接表删除），
+    // 如果被删除，则self变为悬空指针，导致未定义行为！
+    auto wp = static_cast<std::weak_ptr<Connection> *>(ctx);
+    auto sp = wp->lock();
+    if (!sp)
+    {
+        // 对象已经被销毁
+        LOG(WARNING) << "Connection object has already been destroyed. Callback aborted.";
         return;
+    }
     evbuffer *input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
     if (len == 0)
@@ -79,28 +92,26 @@ void Connection::readCb(struct bufferevent *bev, void *ctx)
     msg.resize(len);
     evbuffer_remove(input, &msg[0], len);
 
-    // 获取 shared_ptr
-    // auto sp = shared_from_this();
-    // 这里不能使用裸指针。这是因为无法保证对象在执行回调前是否被删除（例如，从连接表删除），
-    // 如果被删除，则self变为悬空指针，导致未定义行为！
-    // shared_ptr用于延长生命周期
-    auto sp = self->_self.lock();
-    if (!sp)
-        return;
-
-    if (self->_onMessage)
+    if (sp->_onMessage)
     {
         // 交给上层处理（注意：上层处理不要阻塞）
-        self->_onMessage(sp, msg);
+        sp->_onMessage(sp, msg);
     }
 }
 
 // 处理连接关闭、错误回调
 void Connection::eventCb(struct bufferevent *bev, short events, void *ctx)
 {
-    Connection *self = static_cast<Connection *>(ctx);
-    if (!self)
+    // Connection *self = static_cast<Connection *>(ctx);
+    auto wp = static_cast<std::weak_ptr<Connection> *>(ctx);
+    auto sp = wp->lock();
+
+    if (!sp)
+    {
+        LOG(WARNING) << "Connection object has already been destroyed. Callback aborted.";
+        delete wp;
         return;
+    }
 
     evutil_socket_t fd = bufferevent_getfd(bev);
     bool notifyClose = false;
@@ -124,15 +135,17 @@ void Connection::eventCb(struct bufferevent *bev, short events, void *ctx)
     if (notifyClose)
     {
         // 通知上层清理（回调可以移除 map 中的 shared_ptr）
-        if (self->_onClose)
+        if (sp->_onClose)
         {
-            self->_onClose(fd);
+            sp->_onClose(fd);
         }
         // free bufferevent 交给析构或直接释放
-        if (self->_bev)
+        if (sp->_bev)
         {
-            bufferevent_free(self->_bev);
-            self->_bev = nullptr;
+            bufferevent_free(sp->_bev);
+            sp->_bev = nullptr;
         }
     }
+    // 最后再删除这个指针，避免内存泄露
+    delete wp;
 }

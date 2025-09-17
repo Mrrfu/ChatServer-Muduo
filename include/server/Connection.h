@@ -6,6 +6,8 @@
 #include <event2/event.h>
 #include <event2/bufferevent.h>
 
+#include "Logger.h"
+
 // 仿照muduo的TcpServerConn封装一次连接
 
 // enable_shared_from_this保证返回的shared_ptr与原始管理对象的shared_ptr共享同一个引用计数
